@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator - Premium</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- jsPDF & AutoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+        /* Z-Index Hierarchy */
+        .z-loading { z-index: 9999; }
+        .z-toast { z-index: 2000; }
+        .z-modal { z-index: 1000; }
+
+        /* Animated Background Blobs */
+        .bg-blobs {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-color: #0f172a; 
+            overflow: hidden;
+        }
+        .blob-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(0,0,0,0) 70%);
+            animation: float 15s ease-in-out infinite alternate;
+        }
+        .blob-2 {
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 60vw;
+            height: 60vw;
+            background: radial-gradient(circle, rgba(139,92,246,0.15) 0%, rgba(0,0,0,0) 70%);
+            animation: float 20s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(5%, 5%) scale(1.1); }
+        }
+
+        /* Premium Glassmorphism */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        }
+        
+        .glass-input {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            transition: all 0.3s ease;
+        }
+        .glass-input:focus {
+            background: rgba(0, 0, 0, 0.4);
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            outline: none;
+        }
+        
+        .glass-header {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #60a5fa;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .toast-enter { animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; cursor: pointer; }
+        select option { background: #1e293b; color: white; }
+    </style>
+</head>
+<body class="text-gray-200 font-sans antialiased overflow-x-hidden min-h-screen">
+
+    <div class="bg-blobs"><div class="blob-1"></div><div class="blob-2"></div></div>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex-col items-center justify-center z-loading hidden">
+        <div class="glass-panel p-6 rounded-2xl flex flex-col items-center">
+            <div class="loader mb-4"></div>
+            <p class="text-white font-medium tracking-wide" id="loading-text">Memproses...</p>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed top-5 right-5 flex flex-col gap-3 z-toast"></div>
+
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-modal opacity-0 transition-opacity duration-300">
+        <div class="glass-panel rounded-2xl w-full max-w-sm p-6 transform scale-95 transition-transform duration-300">
+            <div class="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-4">
+                <i class="fa-solid fa-triangle-exclamation text-red-400 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2" id="confirm-title">Konfirmasi</h3>
+            <p class="text-gray-300 mb-6 text-sm" id="confirm-message">Apakah Anda yakin?</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('confirm-modal')" class="px-4 py-2 glass-input rounded-xl hover:bg-white/10 transition text-sm">Batal</button>
+                <button id="confirm-btn" class="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/25 transition text-sm font-medium">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <div class="glass-panel rounded-3xl w-full max-w-md p-8 relative overflow-hidden">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/20 rounded-full blur-[50px]"></div>
+            <div class="text-center mb-8 relative z-10">
+                <div class="inline-flex p-4 glass-panel rounded-2xl mb-4 border-blue-400/30">
+                    <i class="fa-solid fa-gem text-4xl text-blue-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-white tracking-tight">Invoice<span class="text-blue-400">Pro</span></h1>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)" class="relative z-10">
+                <div class="mb-5">
+                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Username</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-user text-gray-500"></i>
+                        </div>
+                        <input type="text" id="username" class="w-full pl-11 pr-4 py-3 glass-input rounded-xl text-sm" placeholder="Masukkan username" required>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-lock text-gray-500"></i>
+                        </div>
+                        <input type="password" id="password" class="w-full pl-11 pr-12 py-3 glass-input rounded-xl text-sm" placeholder="••••••••" required>
+                        <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-gray-300 transition focus:outline-none">
+                            <i class="fa-solid fa-eye" id="eye-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25">
+                    Login Securely
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" style="display: none;" class="min-h-screen flex relative z-10 p-2 md:p-4 gap-4">
+        
+        <!-- Sidebar -->
+        <aside class="w-64 glass-panel flex-shrink-0 hidden md:flex flex-col rounded-3xl overflow-hidden border-white/5">
+            <div class="p-6 flex items-center gap-3 border-b border-white/5 bg-white/5">
+                <i class="fa-solid fa-gem text-blue-400 text-2xl drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]"></i>
+                <span class="text-xl font-bold tracking-wide text-white">Invoice<span class="text-blue-400">Pro</span></span>
+            </div>
+            <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+                <a href="#" onclick="navigate('dashboard')" id="nav-dashboard" class="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border border-blue-500/30 text-blue-400 rounded-xl transition">
+                    <i class="fa-solid fa-chart-pie w-5"></i> <span class="font-medium text-sm">Dashboard</span>
+                </a>
+                <a href="#" onclick="navigate('clients')" id="nav-clients" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+                    <i class="fa-solid fa-house-user w-5"></i> <span class="font-medium text-sm">Data Nasabah</span>
+                </a>
+                <a href="#" onclick="navigate('invoices')" id="nav-invoices" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+                    <i class="fa-solid fa-file-invoice w-5"></i> <span class="font-medium text-sm">Tagihan Cicilan</span>
+                </a>
+                <a href="#" onclick="navigate('settings')" id="nav-settings" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+                    <i class="fa-solid fa-gear w-5"></i> <span class="font-medium text-sm">Pengaturan</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-white/5 bg-white/5">
+                <div class="flex items-center gap-3 px-4 py-3 mb-2 rounded-xl bg-black/20 border border-white/5">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-xs" id="user-avatar">
+                        AD
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-white truncate" id="user-name">Administrator</p>
+                        <p class="text-xs text-gray-400 truncate" id="user-role">Role</p>
+                    </div>
+                </div>
+                <button onclick="handleLogout()" class="flex items-center gap-3 px-4 py-2 w-full text-left text-gray-400 hover:text-rose-400 transition rounded-lg hover:bg-rose-500/10">
+                    <i class="fa-solid fa-arrow-right-from-bracket w-5"></i> <span class="font-medium text-sm">Keluar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] glass-panel rounded-3xl overflow-hidden border-white/5">
+            <header class="md:hidden glass-header px-4 py-4 flex justify-between items-center z-10 border-b border-white/5">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-gem text-blue-400 text-xl"></i>
+                    <span class="font-bold text-white">Invoice<span class="text-blue-400">Pro</span></span>
+                </div>
+                <button onclick="handleLogout()" class="text-gray-400 hover:text-rose-400">
+                    <i class="fa-solid fa-power-off text-xl"></i>
+                </button>
+            </header>
+
+            <header class="hidden md:flex glass-header px-8 py-5 justify-between items-center z-10 sticky top-0 border-b border-white/5">
+                <h2 class="text-2xl font-bold text-white tracking-tight drop-shadow-md" id="page-title">Dashboard</h2>
+                <div class="flex items-center gap-4">
+                    <button class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-gray-300 hover:text-white transition relative">
+                        <i class="fa-solid fa-sync"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="p-4 md:p-8 flex-1 overflow-y-auto">
+                <!-- VIEW: DASHBOARD -->
+                <div id="view-dashboard" class="space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                            <div class="absolute -right-6 -top-6 text-blue-500/10 text-8xl transform group-hover:scale-110 transition-transform duration-500"><i class="fa-solid fa-users"></i></div>
+                            <div class="relative z-10 flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 text-xl">
+                                    <i class="fa-solid fa-users"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Nasabah</p>
+                                    <p class="text-3xl font-bold text-white mt-1" id="stat-clients">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                            <div class="absolute -right-6 -top-6 text-emerald-500/10 text-8xl transform group-hover:scale-110 transition-transform duration-500"><i class="fa-solid fa-check-double"></i></div>
+                            <div class="relative z-10 flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl">
+                                    <i class="fa-solid fa-file-circle-check"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Tagihan Lunas</p>
+                                    <p class="text-3xl font-bold text-white mt-1" id="stat-paid">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                            <div class="absolute -right-6 -top-6 text-amber-500/10 text-8xl transform group-hover:scale-110 transition-transform duration-500"><i class="fa-solid fa-hourglass-half"></i></div>
+                            <div class="relative z-10 flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl">
+                                    <i class="fa-solid fa-clock"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Menunggu (Rp)</p>
+                                    <p class="text-2xl font-bold text-white mt-1" id="stat-unpaid">Rp 0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-2xl overflow-hidden border-white/5">
+                        <div class="px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+                            <h3 class="font-semibold text-white">Invoice Terbaru</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-black/20 text-gray-400 text-xs uppercase tracking-wider">
+                                        <th class="px-6 py-4 font-medium">No. Invoice</th>
+                                        <th class="px-6 py-4 font-medium">Nasabah</th>
+                                        <th class="px-6 py-4 font-medium">Tanggal</th>
+                                        <th class="px-6 py-4 font-medium">Total</th>
+                                        <th class="px-6 py-4 font-medium">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-invoices-body" class="divide-y divide-white/5 text-sm text-gray-300">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: CLIENTS -->
+                <div id="view-clients" class="hidden space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between gap-4">
+                        <div class="relative w-full sm:w-72">
+                            <i class="fa-solid fa-search absolute left-4 top-3 text-gray-400"></i>
+                            <input type="text" id="search-client" onkeyup="filterClients()" placeholder="Cari nasabah..." class="w-full pl-11 pr-4 py-2.5 glass-input rounded-xl text-sm">
+                        </div>
+                        <button onclick="openClientModal()" class="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Tambah Nasabah
+                        </button>
+                    </div>
+                    <div class="glass-panel rounded-2xl overflow-hidden border-white/5">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-black/20 text-gray-400 text-xs uppercase tracking-wider">
+                                        <th class="px-6 py-4 font-medium">Nama Nasabah</th>
+                                        <th class="px-6 py-4 font-medium">Blok / Kavling</th>
+                                        <th class="px-6 py-4 font-medium">Tipe</th>
+                                        <th class="px-6 py-4 font-medium">Harga Total</th>
+                                        <th class="px-6 py-4 font-medium text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-table-body" class="divide-y divide-white/5 text-sm text-gray-300">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: INVOICES -->
+                <div id="view-invoices" class="hidden space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between gap-4">
+                        <button onclick="downloadExcel()" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Export Excel
+                        </button>
+                        <button onclick="openCreateInvoice()" class="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Buat Invoice
+                        </button>
+                    </div>
+                    <div class="glass-panel rounded-2xl overflow-hidden border-white/5">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-black/20 text-gray-400 text-xs uppercase tracking-wider">
+                                        <th class="px-6 py-4 font-medium">No. Invoice</th>
+                                        <th class="px-6 py-4 font-medium">Nasabah</th>
+                                        <th class="px-6 py-4 font-medium">Blok / Kav</th>
+                                        <th class="px-6 py-4 font-medium">Bulan Ke-</th>
+                                        <th class="px-6 py-4 font-medium">Total</th>
+                                        <th class="px-6 py-4 font-medium">Status</th>
+                                        <th class="px-6 py-4 font-medium text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="invoices-table-body" class="divide-y divide-white/5 text-sm text-gray-300">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: CREATE INVOICE FORM -->
+                <div id="view-create-invoice" class="hidden space-y-6">
+                    <button onclick="navigate('invoices')" class="text-gray-400 hover:text-white text-sm font-medium flex items-center gap-2 mb-2 w-max px-3 py-1.5 rounded-lg hover:bg-white/5 transition">
+                        <i class="fa-solid fa-arrow-left"></i> Kembali
+                    </button>
+                    
+                    <div class="glass-panel rounded-2xl p-6 md:p-10 border-white/5 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+                        <div class="flex justify-between items-start mb-10 border-b border-white/10 pb-8 relative z-10">
+                            <div>
+                                <h3 class="text-3xl font-bold text-white tracking-widest uppercase opacity-90">Invoice</h3>
+                                <p class="text-blue-400 text-sm mt-1 font-mono tracking-wide" id="draft-inv-no">INV-XXXX</p>
+                            </div>
+                            <div class="text-right">
+                                <h4 class="font-bold text-white text-lg" id="app-company-name">PT Perusahaan Demo</h4>
+                                <p class="text-sm text-gray-400" id="app-company-address">Jl. Contoh Alamat</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10 relative z-10">
+                            <div class="bg-black/20 p-5 rounded-xl border border-white/5">
+                                <label class="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Kepada (Nasabah):</label>
+                                <select id="inv-client" onchange="handleClientSelect(this.value)" class="w-full p-2.5 glass-input rounded-lg text-sm mb-4">
+                                </select>
+                                
+                                <div id="property-info" class="hidden bg-blue-500/10 p-4 rounded-lg border border-blue-500/20 text-sm">
+                                    <div class="grid grid-cols-2 gap-y-3 gap-x-2 text-gray-300">
+                                        <div><span class="text-gray-400 text-xs block mb-0.5">Blok/Kav</span> <span id="info-blok" class="font-medium text-white">-</span></div>
+                                        <div><span class="text-gray-400 text-xs block mb-0.5">Tipe</span> <span id="info-tipe" class="font-medium text-white">-</span></div>
+                                        <div><span class="text-gray-400 text-xs block mb-0.5">Harga</span> <span id="info-harga" class="font-medium text-blue-400">-</span></div>
+                                        <div><span class="text-gray-400 text-xs block mb-0.5">Tenor</span> <span class="font-medium text-white"><span id="info-tenor">-</span> Bln</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-5 content-start">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Tanggal Tagihan</label>
+                                    <input type="date" id="inv-date" class="w-full p-2.5 glass-input rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Jatuh Tempo</label>
+                                    <input type="date" id="inv-due" class="w-full p-2.5 glass-input rounded-lg text-sm">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Cicilan Bulan Ke-</label>
+                                    <input type="number" id="inv-cicilan-ke" min="1" placeholder="Contoh: 12" class="w-full p-2.5 glass-input rounded-lg text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-10 relative z-10 overflow-hidden rounded-xl border border-white/10">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-blue-900/40 text-blue-200 text-xs uppercase tracking-wider">
+                                        <th class="px-5 py-3 font-medium">Deskripsi Barang / Jasa</th>
+                                        <th class="px-5 py-3 font-medium w-24 text-center">Qty</th>
+                                        <th class="px-5 py-3 font-medium w-40 text-right">Harga Satuan</th>
+                                        <th class="px-5 py-3 font-medium w-40 text-right">Total</th>
+                                        <th class="px-5 py-3 font-medium w-12"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inv-items-body" class="divide-y divide-white/5 bg-black/10">
+                                </tbody>
+                            </table>
+                            <div class="p-3 bg-black/10 border-t border-white/5">
+                                <button onclick="addInvoiceItem()" class="text-sm text-blue-400 font-medium hover:text-blue-300 flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 transition">
+                                    <i class="fa-solid fa-plus-circle"></i> Tambah Baris
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end relative z-10">
+                            <div class="w-full md:w-5/12 bg-black/20 p-6 rounded-xl border border-white/5 space-y-4">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-400">Subtotal:</span>
+                                    <span class="font-medium text-white" id="inv-subtotal">Rp 0</span>
+                                </div>
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="text-gray-400">Diskon (Rp):</span>
+                                    <input type="number" id="inv-discount" value="0" oninput="calculateInvTotal()" class="w-32 p-1.5 glass-input rounded-lg text-right text-sm">
+                                </div>
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="text-gray-400">Pajak / PPN (%):</span>
+                                    <input type="number" id="inv-tax" value="0" oninput="calculateInvTotal()" class="w-32 p-1.5 glass-input rounded-lg text-right text-sm">
+                                </div>
+                                <div class="flex justify-between items-end border-t border-white/10 pt-4 mt-2">
+                                    <span class="text-gray-300 font-medium pb-1">Total Akhir:</span>
+                                    <span class="text-2xl font-bold text-blue-400" id="inv-grandtotal">Rp 0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-10 flex justify-end gap-4 relative z-10 border-t border-white/5 pt-6">
+                            <button onclick="navigate('invoices')" class="px-6 py-2.5 glass-input rounded-xl hover:bg-white/10 transition font-medium text-sm">Batal</button>
+                            <button onclick="saveInvoice()" class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg flex items-center gap-2">
+                                <i class="fa-solid fa-print"></i> Simpan & Cetak
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: SETTINGS -->
+                <div id="view-settings" class="hidden space-y-6">
+                    <div class="glass-panel rounded-2xl border-white/5 p-8 max-w-2xl relative overflow-hidden">
+                        <h3 class="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4 relative z-10">Pengaturan Perusahaan</h3>
+                        <form onsubmit="saveSettings(event)" class="space-y-5 relative z-10">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Nama Usaha / Perusahaan</label>
+                                <input type="text" id="set-company-name" required class="w-full p-3 glass-input rounded-xl text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Alamat Lengkap</label>
+                                <textarea id="set-company-address" required class="w-full p-3 glass-input rounded-xl text-sm" rows="3"></textarea>
+                            </div>
+                            <div class="pt-4">
+                                <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg">Simpan Pengaturan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: ADD CLIENT -->
+    <div id="modal-client" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-modal opacity-0 transition-opacity duration-300">
+        <div class="glass-panel rounded-3xl w-full max-w-lg transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]">
+            <div class="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <h3 class="text-lg font-bold text-white">Tambah Data Nasabah</h3>
+                <button onclick="closeModal('modal-client')" class="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <form id="client-form" onsubmit="saveClient(event)" class="space-y-5">
+                    <div class="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Nama Lengkap *</label>
+                            <input type="text" id="c-name" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">No. WhatsApp *</label>
+                            <input type="text" id="c-wa" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Email</label>
+                            <input type="email" id="c-email" class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Alamat</label>
+                            <textarea id="c-address" rows="2" class="w-full p-2.5 glass-input rounded-lg text-sm"></textarea>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Blok / Kavling *</label>
+                            <input type="text" id="c-blok" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Tipe Rumah *</label>
+                            <input type="text" id="c-tipe" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Total Harga (Rp) *</label>
+                            <input type="number" id="c-harga" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1.5">Tenor (Bulan) *</label>
+                            <input type="number" id="c-tenor" required class="w-full p-2.5 glass-input rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div class="pt-2 flex justify-end gap-3">
+                        <button type="button" onclick="closeModal('modal-client')" class="px-5 py-2.5 glass-input rounded-xl text-sm">Batal</button>
+                        <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg text-sm">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT (PRODUCTION) -->
+    <script>
+        /**
+         * ============================================================
+         * WAJIB DIUBAH!
+         * Ganti URL di bawah dengan URL Web App Apps Script Anda.
+         * ============================================================
+         */
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZem9h335bLVTZzFJ7AlFAlQTtn3j7H0cNFhl2cfuFTtlSj7lvvv4iY66o5yysi0FQ/exec";
+
+        // --- GLOBAL STATE ---
+        let appData = {
+            clients: [],
+            invoices: [],
+            settings: {}
+        };
+        let draftItems = [];
+        let confirmCallback = null;
+
+        // --- UTILS ---
+        const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
+
+        function togglePassword() {
+            const p = document.getElementById('password');
+            const i = document.getElementById('eye-icon');
+            if(p.type === 'password') { p.type = 'text'; i.className = 'fa-solid fa-eye-slash'; } 
+            else { p.type = 'password'; i.className = 'fa-solid fa-eye'; }
+        }
+
+        function showLoading(msg = 'Memproses...') {
+            document.getElementById('loading-text').innerText = msg;
+            document.getElementById('loading-overlay').classList.replace('hidden', 'flex');
+        }
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.replace('flex', 'hidden');
+        }
+
+        function showToast(msg, type = 'success') {
+            const c = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            const bg = type === 'success' ? 'bg-emerald-500/90' : type === 'error' ? 'bg-rose-500/90' : 'bg-blue-500/90';
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+            t.className = `toast-enter flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border border-white/10 backdrop-blur-md text-white text-sm font-medium ${bg}`;
+            t.innerHTML = `<i class="fa-solid ${icon} text-lg"></i> <span>${msg}</span>`;
+            c.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(100%)'; t.style.transition = 'all 0.3s'; setTimeout(() => t.remove(), 300); }, 3000);
+        }
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            m.classList.replace('hidden', 'flex');
+            setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div').classList.remove('scale-95'); }, 10);
+        }
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            m.classList.add('opacity-0'); m.querySelector('div').classList.add('scale-95');
+            setTimeout(() => { m.classList.replace('flex', 'hidden'); }, 300);
+        }
+
+        function customConfirm(title, msg, cb) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-message').innerText = msg;
+            confirmCallback = cb;
+            openModal('confirm-modal');
+        }
+        document.getElementById('confirm-btn').addEventListener('click', () => { closeModal('confirm-modal'); if(confirmCallback) confirmCallback(); });
+
+        // --- API FETCHER ---
+        async function apiCall(action, payload = {}) {
+            const token = sessionStorage.getItem('token');
+            if(token) payload.token = token;
+            
+            try {
+                const res = await fetch(APP_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' }, // Avoids CORS preflight issue in GAS
+                    body: JSON.stringify({ action, payload })
+                });
+                return await res.json();
+            } catch (err) {
+                console.error(err);
+                return { success: false, message: "Terjadi kesalahan koneksi ke server." };
+            }
+        }
+
+        // --- AUTH ---
+        window.onload = async () => {
+            const token = sessionStorage.getItem('token');
+            if (token) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'flex';
+                fetchDashboardData();
+            }
+        };
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            showLoading("Memverifikasi...");
+            const res = await apiCall('login', { username, password });
+            hideLoading();
+            
+            if (res.success) {
+                sessionStorage.setItem('token', res.data.token);
+                sessionStorage.setItem('user_name', res.data.name);
+                sessionStorage.setItem('user_role', res.data.role);
+                
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'flex';
+                showToast("Login Berhasil", "success");
+                fetchDashboardData();
+            } else {
+                showToast(res.message, "error");
+            }
+        }
+
+        function handleLogout() {
+            customConfirm("Keluar", "Yakin ingin keluar?", () => {
+                sessionStorage.clear();
+                document.getElementById('app-container').style.display = 'none';
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('login-form').reset();
+            });
+        }
+
+        // --- DATA FETCHING ---
+        async function fetchDashboardData() {
+            showLoading("Memuat data...");
+            // Set User Info UI
+            document.getElementById('user-name').innerText = sessionStorage.getItem('user_name') || 'User';
+            document.getElementById('user-role').innerText = sessionStorage.getItem('user_role') || 'Admin';
+            const initial = (sessionStorage.getItem('user_name') || 'U').substring(0, 2).toUpperCase();
+            document.getElementById('user-avatar').innerText = initial;
+
+            const res = await apiCall('get_dashboard');
+            hideLoading();
+            
+            if(res.success) {
+                appData.clients = res.data.clients;
+                appData.invoices = res.data.invoices;
+                appData.settings = res.data.settings;
+                
+                // Update UI Settings
+                document.getElementById('app-company-name').innerText = appData.settings.companyName || "Perusahaan";
+                document.getElementById('app-company-address').innerText = appData.settings.companyAddress || "-";
+                document.getElementById('set-company-name').value = appData.settings.companyName || "";
+                document.getElementById('set-company-address').value = appData.settings.companyAddress || "";
+
+                navigate('dashboard');
+            } else {
+                if(res.message.includes('Token')) handleLogout(); // Invalid token
+                showToast(res.message, "error");
+            }
+        }
+
+        // --- NAVIGATION & RENDERING ---
+        function navigate(viewId) {
+            ['view-dashboard', 'view-clients', 'view-invoices', 'view-create-invoice', 'view-settings'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            
+            ['nav-dashboard', 'nav-clients', 'nav-invoices', 'nav-settings'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.className = "flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition";
+            });
+
+            if(viewId !== 'create-invoice') {
+                const activeNav = document.getElementById(`nav-${viewId}`);
+                if(activeNav) activeNav.className = "flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border border-blue-500/30 text-blue-400 rounded-xl transition";
+                const titles = { 'dashboard': 'Dashboard', 'clients': 'Data Nasabah', 'invoices': 'Daftar Tagihan', 'settings': 'Pengaturan' };
+                document.getElementById('page-title').innerText = titles[viewId];
+            } else {
+                document.getElementById('page-title').innerText = "Buat Invoice";
+                document.getElementById('nav-invoices').className = "flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border border-blue-500/30 text-blue-400 rounded-xl transition";
+            }
+
+            if(viewId === 'dashboard') renderDashboard();
+            if(viewId === 'clients') renderClients();
+            if(viewId === 'invoices') renderInvoices();
+        }
+
+        function renderDashboard() {
+            document.getElementById('stat-clients').innerText = appData.clients.length;
+            const paid = appData.invoices.filter(i => i.status === 'Paid').length;
+            document.getElementById('stat-paid').innerText = paid;
+            const unpaidTotal = appData.invoices.filter(i => i.status === 'Unpaid').reduce((s, i) => s + Number(i.total), 0);
+            document.getElementById('stat-unpaid').innerText = formatRp(unpaidTotal);
+
+            const tbody = document.getElementById('recent-invoices-body');
+            tbody.innerHTML = '';
+            appData.invoices.slice(-5).reverse().forEach(inv => {
+                const c = appData.clients.find(x => x.id === inv.clientId) || {};
+                const badge = inv.status === 'Paid' 
+                    ? `<span class="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs">LUNAS</span>`
+                    : `<span class="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs">BELUM</span>`;
+                tbody.innerHTML += `
+                    <tr class="border-b border-white/5">
+                        <td class="px-6 py-4">${inv.id}</td>
+                        <td class="px-6 py-4">${c.name || '-'}</td>
+                        <td class="px-6 py-4">${inv.date}</td>
+                        <td class="px-6 py-4 text-blue-300">${formatRp(inv.total)}</td>
+                        <td class="px-6 py-4">${badge}</td>
+                    </tr>`;
+            });
+        }
+
+        // --- CLIENTS ---
+        function renderClients(filterStr = '') {
+            const tbody = document.getElementById('clients-table-body');
+            tbody.innerHTML = '';
+            const filtered = appData.clients.filter(c => c.name.toLowerCase().includes(filterStr.toLowerCase()) || c.blok.toLowerCase().includes(filterStr.toLowerCase()));
+            
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Data tidak ditemukan.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(c => {
+                tbody.innerHTML += `
+                    <tr class="border-b border-white/5 hover:bg-white/5">
+                        <td class="px-6 py-4 text-white">${c.name}<br><span class="text-xs text-gray-400"><i class="fa-brands fa-whatsapp text-emerald-400"></i> ${c.phone}</span></td>
+                        <td class="px-6 py-4 text-blue-300">${c.blok}</td>
+                        <td class="px-6 py-4">${c.tipe}</td>
+                        <td class="px-6 py-4">${formatRp(c.harga)}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="createInvoiceForClient('${c.id}')" class="w-8 h-8 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white mr-1"><i class="fa-solid fa-file-invoice"></i></button>
+                            <button onclick="customConfirm('Hapus', 'Yakin hapus ${c.name}?', () => deleteClient('${c.id}'))" class="w-8 h-8 rounded bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+        }
+        function filterClients() { renderClients(document.getElementById('search-client').value); }
+        
+        function openClientModal() { document.getElementById('client-form').reset(); openModal('modal-client'); }
+
+        async function saveClient(e) {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('c-name').value, phone: document.getElementById('c-wa').value,
+                email: document.getElementById('c-email').value, address: document.getElementById('c-address').value,
+                blok: document.getElementById('c-blok').value, tipe: document.getElementById('c-tipe').value,
+                harga: document.getElementById('c-harga').value, tenor: document.getElementById('c-tenor').value
+            };
+            showLoading('Menyimpan Nasabah...');
+            const res = await apiCall('save_client', payload);
+            hideLoading();
+            if(res.success) {
+                closeModal('modal-client');
+                showToast("Nasabah tersimpan!", "success");
+                fetchDashboardData(); 
+            } else showToast(res.message, "error");
+        }
+
+        async function deleteClient(id) {
+            showLoading("Menghapus...");
+            const res = await apiCall('delete_client', { id });
+            hideLoading();
+            if(res.success) { showToast("Terhapus", "success"); fetchDashboardData(); }
+            else showToast(res.message, "error");
+        }
+
+        // --- INVOICES ---
+        function renderInvoices() {
+            const tbody = document.getElementById('invoices-table-body');
+            tbody.innerHTML = '';
+            appData.invoices.slice().reverse().forEach(inv => {
+                const c = appData.clients.find(x => x.id === inv.clientId) || {};
+                const badge = inv.status === 'Paid' 
+                    ? `<span onclick="toggleStatus('${inv.id}')" class="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs cursor-pointer hover:bg-emerald-500/40">LUNAS</span>`
+                    : `<span onclick="toggleStatus('${inv.id}')" class="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs cursor-pointer hover:bg-amber-500/40">BELUM</span>`;
+                tbody.innerHTML += `
+                    <tr class="border-b border-white/5 hover:bg-white/5 group">
+                        <td class="px-6 py-4">${inv.id}</td>
+                        <td class="px-6 py-4">${c.name || '-'}</td>
+                        <td class="px-6 py-4 text-blue-300">${c.blok || '-'}</td>
+                        <td class="px-6 py-4">Bln ${inv.cicilanKe}</td>
+                        <td class="px-6 py-4">${formatRp(inv.total)}</td>
+                        <td class="px-6 py-4">${badge}</td>
+                        <td class="px-6 py-4 text-right space-x-1 opacity-100 sm:opacity-0 group-hover:opacity-100">
+                            <button onclick="downloadPDF('${inv.id}')" class="w-8 h-8 rounded bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white"><i class="fa-solid fa-file-pdf"></i></button>
+                            <button onclick="sendWA('${c.phone}', '${inv.id}', ${inv.total})" class="w-8 h-8 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white"><i class="fa-brands fa-whatsapp"></i></button>
+                            <button onclick="customConfirm('Hapus', 'Yakin hapus ${inv.id}?', () => deleteInvoice('${inv.id}'))" class="w-8 h-8 rounded bg-gray-500/10 text-gray-400 hover:bg-rose-500 hover:text-white"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        async function toggleStatus(id) {
+            showLoading("Mengubah status...");
+            const res = await apiCall('toggle_invoice_status', { id });
+            hideLoading();
+            if(res.success) fetchDashboardData();
+            else showToast(res.message, "error");
+        }
+
+        async function deleteInvoice(id) {
+            showLoading("Menghapus...");
+            const res = await apiCall('delete_invoice', { id });
+            hideLoading();
+            if(res.success) { showToast("Terhapus", "success"); fetchDashboardData(); }
+            else showToast(res.message, "error");
+        }
+
+        // --- CREATE INVOICE ---
+        function openCreateInvoice() {
+            const sel = document.getElementById('inv-client');
+            sel.innerHTML = '<option value="">-- Pilih Nasabah --</option>';
+            appData.clients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name} (Blok: ${c.blok})</option>`);
+            
+            document.getElementById('property-info').classList.add('hidden');
+            document.getElementById('inv-cicilan-ke').value = '';
+            document.getElementById('draft-inv-no').innerText = 'INV-' + new Date().getFullYear().toString().substr(-2) + Math.floor(Math.random()*1000).toString().padStart(3, '0');
+            
+            draftItems = [ { desc: 'Cicilan Rumah Bulan Ke-', qty: 1, price: 0, total: 0 } ];
+            renderDraftItems();
+            navigate('create-invoice');
+        }
+
+        function createInvoiceForClient(id) { openCreateInvoice(); document.getElementById('inv-client').value = id; handleClientSelect(id); }
+
+        function handleClientSelect(id) {
+            const info = document.getElementById('property-info');
+            if(!id) { info.classList.add('hidden'); return; }
+            const c = appData.clients.find(x => x.id === id);
+            if(c) {
+                document.getElementById('info-blok').innerText = c.blok;
+                document.getElementById('info-tipe').innerText = c.tipe;
+                document.getElementById('info-harga').innerText = formatRp(c.harga);
+                document.getElementById('info-tenor').innerText = c.tenor;
+                info.classList.remove('hidden');
+            }
+        }
+
+        function renderDraftItems() {
+            const tbody = document.getElementById('inv-items-body');
+            tbody.innerHTML = '';
+            draftItems.forEach((item, i) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="p-2"><input type="text" value="${item.desc}" oninput="updateItem(${i}, 'desc', this.value)" class="w-full p-2 glass-input rounded text-sm bg-transparent"></td>
+                        <td class="p-2"><input type="number" min="1" value="${item.qty}" oninput="updateItem(${i}, 'qty', this.value)" class="w-full p-2 glass-input rounded text-sm text-center bg-transparent"></td>
+                        <td class="p-2"><input type="number" min="0" value="${item.price}" oninput="updateItem(${i}, 'price', this.value)" class="w-full p-2 glass-input rounded text-sm text-right bg-transparent"></td>
+                        <td class="p-2 text-right text-blue-300">${formatRp(item.total)}</td>
+                        <td class="p-2 text-center"><button onclick="removeItem(${i})" class="text-rose-400 hover:bg-rose-500/20 w-8 h-8 rounded"><i class="fa-solid fa-times"></i></button></td>
+                    </tr>`;
+            });
+            calculateInvTotal();
+        }
+
+        function addInvoiceItem() { draftItems.push({desc: '', qty: 1, price: 0, total: 0}); renderDraftItems(); }
+        function removeItem(i) { if(draftItems.length > 1) { draftItems.splice(i, 1); renderDraftItems(); } }
+        function updateItem(i, f, v) { 
+            draftItems[i][f] = v; 
+            if(f==='qty'||f==='price') draftItems[i].total = (parseFloat(draftItems[i].qty)||0) * (parseFloat(draftItems[i].price)||0);
+            renderDraftItems();
+        }
+
+        function calculateInvTotal() {
+            const sub = draftItems.reduce((s, i) => s + i.total, 0);
+            document.getElementById('inv-subtotal').innerText = formatRp(sub);
+            const disc = parseFloat(document.getElementById('inv-discount').value) || 0;
+            const tax = parseFloat(document.getElementById('inv-tax').value) || 0;
+            const final = (sub - disc) + ((sub - disc) * (tax/100));
+            document.getElementById('inv-grandtotal').innerText = formatRp(final);
+            return final;
+        }
+
+        async function saveInvoice() {
+            const clientId = document.getElementById('inv-client').value;
+            const cicilanKe = document.getElementById('inv-cicilan-ke').value;
+            if(!clientId || !cicilanKe) return showToast("Nasabah dan Cicilan Ke wajib diisi!", "error");
+            if(draftItems[0].desc === '') return showToast("Barang/Jasa kosong!", "error");
+
+            const payload = {
+                id: document.getElementById('draft-inv-no').innerText,
+                clientId, cicilanKe,
+                date: document.getElementById('inv-date').value || new Date().toISOString().split('T')[0],
+                due: document.getElementById('inv-due').value || new Date().toISOString().split('T')[0],
+                total: calculateInvTotal(),
+                items: draftItems
+            };
+
+            showLoading("Menyimpan ke Database...");
+            const res = await apiCall('save_invoice', payload);
+            hideLoading();
+
+            if(res.success) {
+                showToast("Tersimpan!", "success");
+                await fetchDashboardData();
+                downloadPDF(payload.id, true);
+            } else showToast(res.message, "error");
+        }
+
+        // --- EXPORT ---
+        function downloadPDF(invId, navBack = false) {
+            showLoading("Generating PDF...");
+            setTimeout(async () => {
+                const inv = appData.invoices.find(i => i.id === invId);
+                const client = appData.clients.find(c => c.id === inv.clientId) || {};
+                
+                // Ambil items dari backend (jika tidak ada di state lokal)
+                let items = draftItems; // Default ke apa yang ada di form
+                if(navBack === false) {
+                    const res = await apiCall('get_invoice_items', { id: invId });
+                    if(res.success) items = res.data;
+                }
+
+                const { jsPDF } = window.jspdf; const doc = new jsPDF();
+                doc.setFillColor(30, 58, 138); doc.rect(0, 0, 210, 40, 'F');
+                doc.setFontSize(24); doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.text("INVOICE", 14, 25);
+                doc.setFontSize(10); doc.setFont("helvetica", "normal");
+                doc.text(appData.settings.companyName || "Perusahaan", 140, 20);
+                doc.text(appData.settings.companyAddress || "-", 140, 26);
+
+                doc.setTextColor(40, 40, 40); doc.setFont("helvetica", "bold"); doc.text("DETAIL TAGIHAN", 14, 55);
+                doc.setFont("helvetica", "normal"); doc.text(`No: ${inv.id}`, 14, 63); doc.text(`Tgl: ${inv.date}`, 14, 69);
+                
+                doc.setFont("helvetica", "bold"); doc.text("KEPADA", 120, 55);
+                doc.setFont("helvetica", "normal"); doc.text(client.name || '-', 120, 63); doc.text(`Kav: ${client.blok || '-'}`, 120, 69); doc.text(`Cicilan Ke: ${inv.cicilanKe || '-'}`, 120, 75);
+
+                const tableData = items.map(i => [i.desc, i.qty, formatRp(i.price), formatRp(i.total)]);
+                doc.autoTable({ startY: 90, head: [['Deskripsi', 'Qty', 'Harga', 'Total']], body: tableData, theme: 'grid', headStyles: {fillColor: [30,58,138]} });
+                let fY = doc.lastAutoTable.finalY + 15;
+                doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text(`TOTAL: ${formatRp(inv.total)}`, 130, fY);
+
+                doc.save(`${inv.id}.pdf`);
+                hideLoading();
+                if(navBack) navigate('invoices');
+            }, 500);
+        }
+
+        function downloadExcel() {
+            const data = appData.invoices.map(inv => {
+                const c = appData.clients.find(x => x.id === inv.clientId) || {};
+                return { "No Invoice": inv.id, "Nasabah": c.name, "Blok": c.blok, "Cicilan Ke": inv.cicilanKe, "Total": inv.total, "Status": inv.status };
+            });
+            const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Invoices");
+            XLSX.writeFile(wb, "Data_Tagihan.xlsx");
+        }
+
+        function sendWA(phone, id, total) {
+            if(!phone) return showToast("No WA kosong", "error");
+            let p = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
+            let txt = `Halo, tagihan Invoice *${id}* sebesar *${formatRp(total)}* telah terbit. Mohon segera diproses. Terima kasih.`;
+            window.open(`https://wa.me/${p}?text=${encodeURIComponent(txt)}`, '_blank');
+        }
+
+        // --- SETTINGS ---
+        async function saveSettings(e) {
+            e.preventDefault();
+            const payload = { companyName: document.getElementById('set-company-name').value, companyAddress: document.getElementById('set-company-address').value };
+            showLoading("Menyimpan...");
+            const res = await apiCall('save_settings', payload);
+            hideLoading();
+            if(res.success) { showToast("Pengaturan tersimpan!", "success"); fetchDashboardData(); }
+        }
+    </script>
+</body>
+</html>
