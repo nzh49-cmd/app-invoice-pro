@@ -459,17 +459,46 @@
 
                 <!-- VIEW: SETTINGS -->
                 <div id="view-settings" class="hidden space-y-6">
-                    <div class="glass-panel rounded-2xl border-white/5 p-8 max-w-2xl relative overflow-hidden">
-                        <h3 class="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4 relative z-10">Pengaturan Perusahaan</h3>
-                        <form onsubmit="saveSettings(event)" class="space-y-5 relative z-10">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Nama Usaha / Perusahaan</label>
-                                <input type="text" id="set-company-name" required class="w-full p-3 glass-input rounded-xl text-sm">
+                    <div class="glass-panel rounded-2xl border-white/5 p-8 max-w-4xl relative overflow-hidden">
+                        <h3 class="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4 relative z-10">Pengaturan Perusahaan & Invoice</h3>
+                        <form onsubmit="saveSettings(event)" class="space-y-6 relative z-10">
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20 p-5 rounded-xl border border-white/5">
+                                <div class="col-span-1 md:col-span-2">
+                                    <h4 class="text-sm font-semibold text-blue-400 mb-4"><i class="fa-solid fa-building mr-2"></i>Data Perusahaan</h4>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Nama Usaha / Perusahaan</label>
+                                    <input type="text" id="set-company-name" required class="w-full p-3 glass-input rounded-xl text-sm" placeholder="Contoh: Assalam Property">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">No. WhatsApp</label>
+                                    <input type="text" id="set-company-phone" class="w-full p-3 glass-input rounded-xl text-sm" placeholder="Contoh: 0895 3275 61023">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Email</label>
+                                    <input type="email" id="set-company-email" class="w-full p-3 glass-input rounded-xl text-sm" placeholder="Contoh: Kavlingassalam@gmail.com">
+                                </div>
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Slogan / Keterangan (Muncul di bawah Nama Usaha)</label>
+                                    <textarea id="set-company-tagline" class="w-full p-3 glass-input rounded-xl text-sm" rows="2" placeholder="Menjual tanah kavling siap bangun..."></textarea>
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Alamat Lengkap</label>
-                                <textarea id="set-company-address" required class="w-full p-3 glass-input rounded-xl text-sm" rows="3"></textarea>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20 p-5 rounded-xl border border-white/5">
+                                <div class="col-span-1 md:col-span-2">
+                                    <h4 class="text-sm font-semibold text-blue-400 mb-4"><i class="fa-solid fa-map-location-dot mr-2"></i>Data Proyek / Kavling</h4>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Nama Proyek</label>
+                                    <input type="text" id="set-project-name" class="w-full p-3 glass-input rounded-xl text-sm" placeholder="Contoh: ASSALAM">
+                                </div>
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase">Lokasi Proyek</label>
+                                    <textarea id="set-project-location" class="w-full p-3 glass-input rounded-xl text-sm" rows="2" placeholder="Contoh: Gg.Raksa, Kel. Cibeureum Hilir..."></textarea>
+                                </div>
                             </div>
+
                             <div class="pt-4">
                                 <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg">Simpan Pengaturan</button>
                             </div>
@@ -680,10 +709,15 @@
                 appData.settings = res.data.settings;
                 
                 // Update UI Settings
-                document.getElementById('app-company-name').innerText = appData.settings.companyName || "Perusahaan";
-                document.getElementById('app-company-address').innerText = appData.settings.companyAddress || "-";
+                document.getElementById('app-company-name').innerText = appData.settings.companyName || "Assalam Property";
+                
+                // Populate Form Settings
                 document.getElementById('set-company-name').value = appData.settings.companyName || "";
-                document.getElementById('set-company-address').value = appData.settings.companyAddress || "";
+                document.getElementById('set-company-tagline').value = appData.settings.companyTagline || "";
+                document.getElementById('set-company-phone').value = appData.settings.companyPhone || "";
+                document.getElementById('set-company-email').value = appData.settings.companyEmail || "";
+                document.getElementById('set-project-name').value = appData.settings.projectName || "";
+                document.getElementById('set-project-location').value = appData.settings.projectLocation || "";
 
                 navigate('dashboard');
             } else {
@@ -931,7 +965,7 @@
             } else showToast(res.message, "error");
         }
 
-        // --- EXPORT ---
+        // --- EXPORT (RE-DESIGNED to Match Assalam Property) ---
         function downloadPDF(invId, navBack = false) {
             showLoading("Generating PDF...");
             setTimeout(async () => {
@@ -939,29 +973,128 @@
                 const client = appData.clients.find(c => c.id === inv.clientId) || {};
                 
                 // Ambil items dari backend (jika tidak ada di state lokal)
-                let items = draftItems; // Default ke apa yang ada di form
+                let items = draftItems; 
                 if(navBack === false) {
                     const res = await apiCall('get_invoice_items', { id: invId });
                     if(res.success) items = res.data;
                 }
 
-                const { jsPDF } = window.jspdf; const doc = new jsPDF();
-                doc.setFillColor(30, 58, 138); doc.rect(0, 0, 210, 40, 'F');
-                doc.setFontSize(24); doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.text("INVOICE", 14, 25);
-                doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                doc.text(appData.settings.companyName || "Perusahaan", 140, 20);
-                doc.text(appData.settings.companyAddress || "-", 140, 26);
-
-                doc.setTextColor(40, 40, 40); doc.setFont("helvetica", "bold"); doc.text("DETAIL TAGIHAN", 14, 55);
-                doc.setFont("helvetica", "normal"); doc.text(`No: ${inv.id}`, 14, 63); doc.text(`Tgl: ${inv.date}`, 14, 69);
+                const { jsPDF } = window.jspdf; 
+                const doc = new jsPDF();
                 
-                doc.setFont("helvetica", "bold"); doc.text("KEPADA", 120, 55);
-                doc.setFont("helvetica", "normal"); doc.text(client.name || '-', 120, 63); doc.text(`Kav: ${client.blok || '-'}`, 120, 69); doc.text(`Cicilan Ke: ${inv.cicilanKe || '-'}`, 120, 75);
-
-                const tableData = items.map(i => [i.desc, i.qty, formatRp(i.price), formatRp(i.total)]);
-                doc.autoTable({ startY: 90, head: [['Deskripsi', 'Qty', 'Harga', 'Total']], body: tableData, theme: 'grid', headStyles: {fillColor: [30,58,138]} });
+                // Top border
+                doc.setLineWidth(1.5);
+                doc.line(14, 15, 196, 15);
+                
+                // INVOICE text
+                doc.setFontSize(28);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(30, 41, 59); // Dark slate
+                doc.text("INVOICE", 105, 30, { align: "center", charSpace: 2 });
+                
+                // Bottom border
+                doc.line(14, 38, 196, 38);
+                
+                // Left Section (Company Info)
+                doc.setFontSize(16);
+                doc.setFont("helvetica", "bold");
+                doc.text(appData.settings.companyName || "Assalam Property", 14, 52);
+                
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(100, 116, 139); // Grayish text
+                const taglineText = appData.settings.companyTagline || "Menjual tanah kavling siap bangun\nTanpa bank, tanpa bunga, tanpa riba";
+                const tagline = doc.splitTextToSize(taglineText, 80);
+                doc.text(tagline, 14, 60);
+                
+                let currentY = 60 + (tagline.length * 5) + 4;
+                doc.text("WA: " + (appData.settings.companyPhone || "0895 3275 61023"), 14, currentY);
+                doc.text("Email: " + (appData.settings.companyEmail || "Kavlingassalam@gmail.com"), 14, currentY + 6);
+                
+                // Right Section (Yellow Box)
+                doc.setFillColor(250, 190, 40); // Yellow Assalam
+                doc.roundedRect(100, 46, 96, 32, 3, 3, 'F');
+                
+                doc.setTextColor(160, 60, 0); // Darker orange/brown
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "italic");
+                doc.text("Kavling", 148, 52, { align: "center" });
+                
+                doc.setTextColor(30, 58, 138); // Dark Blue for Name
+                doc.setFontSize(22);
+                doc.setFont("helvetica", "bold");
+                doc.text(appData.settings.projectName || "ASSALAM", 148, 62, { align: "center" });
+                
+                doc.setTextColor(120, 90, 20); // Darkish text for location
+                doc.setFontSize(8);
+                doc.setFont("helvetica", "normal");
+                const locText = "Lokasi: " + (appData.settings.projectLocation || "Gg.Raksa, Kel. Cibeureum Hilir, Kec. Cibeureum, Kota Sukabumi");
+                const loc = doc.splitTextToSize(locText, 85);
+                doc.text(loc, 148, 70, { align: "center" });
+                
+                // Bill To Section
+                currentY = Math.max(currentY + 20, 95);
+                
+                doc.setTextColor(30, 41, 59);
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text("Bill To", 14, currentY);
+                doc.setLineWidth(0.5);
+                doc.line(14, currentY + 2, 26, currentY + 2);
+                
+                doc.setFontSize(14);
+                doc.text((client.name || '-').toUpperCase(), 14, currentY + 12);
+                
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(100, 116, 139);
+                doc.text(`Kavling Blok ${client.blok || '-'} Tipe ${client.tipe || '-'}`, 14, currentY + 19);
+                
+                // Invoice Details (Right Side)
+                doc.setTextColor(100, 116, 139);
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "bold");
+                doc.text("Invoice No :", 120, currentY);
+                doc.text("Invoice Date :", 120, currentY + 7);
+                doc.text("Due Date :", 120, currentY + 14);
+                doc.text("Total Kavling :", 120, currentY + 21);
+                
+                doc.setTextColor(30, 41, 59);
+                doc.text(inv.id, 196, currentY, { align: "right" });
+                doc.text(inv.date, 196, currentY + 7, { align: "right" });
+                doc.text(inv.due, 196, currentY + 14, { align: "right" });
+                doc.text(formatRp(client.harga || 0), 196, currentY + 21, { align: "right" });
+                
+                // Table
+                const tableData = items.map((item, index) => [
+                    (index + 1).toString(),
+                    item.desc,
+                    formatRp(item.price), 
+                    item.qty.toString(),
+                    formatRp(item.total)
+                ]);
+                
+                doc.autoTable({
+                    startY: currentY + 30,
+                    head: [['Sl.', 'Description', 'Nominal', 'Qty', 'Amount']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 10 },
+                    columnStyles: {
+                        0: { halign: 'center', cellWidth: 12 },
+                        2: { halign: 'right' },
+                        3: { halign: 'center', cellWidth: 15 },
+                        4: { halign: 'right' }
+                    },
+                    styles: { fontSize: 10, textColor: [50, 50, 50], cellPadding: 4 }
+                });
+                
+                // Total Akhir
                 let fY = doc.lastAutoTable.finalY + 15;
-                doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text(`TOTAL: ${formatRp(inv.total)}`, 130, fY);
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(30, 41, 59);
+                doc.text(`TOTAL BAYAR: ${formatRp(inv.total)}`, 196, fY, { align: "right" });
 
                 doc.save(`${inv.id}.pdf`);
                 hideLoading();
@@ -989,7 +1122,14 @@
         // --- SETTINGS ---
         async function saveSettings(e) {
             e.preventDefault();
-            const payload = { companyName: document.getElementById('set-company-name').value, companyAddress: document.getElementById('set-company-address').value };
+            const payload = { 
+                companyName: document.getElementById('set-company-name').value, 
+                companyTagline: document.getElementById('set-company-tagline').value, 
+                companyPhone: document.getElementById('set-company-phone').value, 
+                companyEmail: document.getElementById('set-company-email').value, 
+                projectName: document.getElementById('set-project-name').value, 
+                projectLocation: document.getElementById('set-project-location').value 
+            };
             showLoading("Menyimpan...");
             const res = await apiCall('save_settings', payload);
             hideLoading();
