@@ -951,10 +951,10 @@
             draftItems.forEach((item, i) => {
                 tbody.innerHTML += `
                     <tr>
-                        <td class="p-2"><input type="text" value="${item.desc}" oninput="updateItem(${i}, 'desc', this.value)" class="w-full p-2 glass-input rounded text-sm bg-transparent"></td>
-                        <td class="p-2"><input type="number" min="1" value="${item.qty}" oninput="updateItem(${i}, 'qty', this.value)" class="w-full p-2 glass-input rounded text-sm text-center bg-transparent"></td>
-                        <td class="p-2"><input type="number" min="0" value="${item.price}" oninput="updateItem(${i}, 'price', this.value)" class="w-full p-2 glass-input rounded text-sm text-right bg-transparent"></td>
-                        <td class="p-2 text-right text-blue-300">${formatRp(item.total)}</td>
+                        <td class="p-2"><input type="text" value="${item.desc}" oninput="updateItem(${i}, 'desc', this.value, this)" class="w-full p-2 glass-input rounded text-sm bg-transparent"></td>
+                        <td class="p-2"><input type="number" min="1" value="${item.qty}" oninput="updateItem(${i}, 'qty', this.value, this)" class="w-full p-2 glass-input rounded text-sm text-center bg-transparent"></td>
+                        <td class="p-2"><input type="number" min="0" value="${item.price}" oninput="updateItem(${i}, 'price', this.value, this)" class="w-full p-2 glass-input rounded text-sm text-right bg-transparent"></td>
+                        <td class="p-2 text-right text-blue-300 item-total-display">${formatRp(item.total)}</td>
                         <td class="p-2 text-center"><button onclick="removeItem(${i})" class="text-rose-400 hover:bg-rose-500/20 w-8 h-8 rounded"><i class="fa-solid fa-times"></i></button></td>
                     </tr>`;
             });
@@ -963,10 +963,23 @@
 
         function addInvoiceItem() { draftItems.push({desc: '', qty: 1, price: 0, total: 0}); renderDraftItems(); }
         function removeItem(i) { if(draftItems.length > 1) { draftItems.splice(i, 1); renderDraftItems(); } }
-        function updateItem(i, f, v) { 
+        
+        function updateItem(i, f, v, el) { 
             draftItems[i][f] = v; 
-            if(f==='qty'||f==='price') draftItems[i].total = (parseFloat(draftItems[i].qty)||0) * (parseFloat(draftItems[i].price)||0);
-            renderDraftItems();
+            if(f==='qty'||f==='price') {
+                draftItems[i].total = (parseFloat(draftItems[i].qty)||0) * (parseFloat(draftItems[i].price)||0);
+                
+                // Update tampilan kolom total baris ini saja (menghindari hilangnya fokus kursor)
+                if(el) {
+                    const row = el.closest('tr');
+                    if(row) {
+                        const totalTd = row.querySelector('.item-total-display');
+                        if(totalTd) totalTd.innerText = formatRp(draftItems[i].total);
+                    }
+                }
+                // Update subtotal dan total akhir
+                calculateInvTotal();
+            }
         }
 
         function calculateInvTotal() {
