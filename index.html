@@ -1035,106 +1035,101 @@
                 const doc = new jsPDF();
                 
                 // INVOICE text
-                doc.setFontSize(24);
+                doc.setFontSize(22);
                 doc.setFont("helvetica", "bold");
                 doc.setTextColor(0, 0, 0);
-                doc.text("INVOICE", 105, 20, { align: "center", charSpace: 1 });
+                doc.text("INVOICE", 105, 18, { align: "center", charSpace: 1 });
                 
                 // Left Section (Company Info)
-                doc.setFontSize(14);
+                doc.setFontSize(13);
                 doc.setFont("helvetica", "bold");
-                doc.text(appData.settings.companyName || "Assalam Property", 14, 30);
+                doc.text(appData.settings.companyName || "Assalam Property", 14, 28);
                 
-                doc.setFontSize(9);
+                doc.setFontSize(8.5);
                 doc.setFont("helvetica", "normal");
-                doc.setTextColor(30, 30, 30); 
+                doc.setTextColor(50, 50, 50); 
                 
-                // Split tagline manually to avoid messy spacing and typos
+                // Wrap tagline properly so it doesn't overlap the right box
                 const taglineText = appData.settings.companyTagline || "* Menjual tanah kavling siap bangun\n* Tanpa bank, tanpa bunga, tanpa riba";
-                const lines = taglineText.split('\n');
-                let currentY = 35;
-                lines.forEach(l => { 
-                    if(l.trim() !== "") {
-                        doc.text(l.trim(), 14, currentY); 
-                        currentY += 4.5; 
-                    }
-                });
+                const wrappedTagline = doc.splitTextToSize(taglineText, 100);
+                doc.text(wrappedTagline, 14, 33);
                 
-                doc.text("WA: " + (appData.settings.companyPhone || "0895 3275 61023"), 14, currentY);
-                doc.text("Email: " + (appData.settings.companyEmail || "Kavlingassalam@gmail.com"), 14, currentY + 4.5);
+                let nextY = 33 + (wrappedTagline.length * 4.2) + 2;
+                doc.text("WA: " + (appData.settings.companyPhone || "0895 3275 61023"), 14, nextY);
+                doc.text("Email: " + (appData.settings.companyEmail || "Kavlingassalam@gmail.com"), 14, nextY + 4);
                 
                 // Right Section (Yellow Box Assalam)
                 doc.setFillColor(253, 224, 71); // Yellow 
-                doc.rect(130, 25, 66, 7, 'F');
+                doc.rect(130, 24, 66, 6, 'F');
                 doc.setTextColor(0, 0, 0);
-                doc.setFontSize(10);
+                doc.setFontSize(9);
                 doc.setFont("helvetica", "italic");
-                doc.text("Kavling", 132, 30);
+                doc.text("Kavling", 133, 28.5);
                 
                 doc.setTextColor(30, 58, 138); // Dark Blue for Name
-                doc.setFontSize(22);
+                doc.setFontSize(16);
                 doc.setFont("helvetica", "bold");
-                doc.text(appData.settings.projectName || "ASSALAM", 130, 40);
+                doc.text(appData.settings.projectName || "ASSALAM", 130, 38);
                 
                 doc.setTextColor(80, 80, 80); 
                 doc.setFontSize(7);
                 doc.setFont("helvetica", "normal");
                 const locText = "Lokasi: " + (appData.settings.projectLocation || "Gg.Raksa, Kel. Cibeureum Hilir, Kec. Cibeureum, Kota Sukabumi");
                 const loc = doc.splitTextToSize(locText, 66);
-                doc.text(loc, 130, 44);
+                doc.text(loc, 130, 42);
                 
                 // Pembatas
                 doc.setDrawColor(200, 200, 200);
-                doc.line(14, 58, 196, 58);
+                doc.line(14, 55, 196, 55);
 
                 // Bill To Section
-                let sectionY = 65;
+                let sectionY = 62;
                 
                 doc.setTextColor(0, 0, 0);
-                doc.setFontSize(11);
+                doc.setFontSize(10);
                 doc.setFont("helvetica", "bold");
                 doc.text("Bill To", 14, sectionY);
                 
                 doc.setFontSize(10);
-                doc.text((client.name || '-').toUpperCase(), 14, sectionY + 6);
+                doc.text((client.name || '-').toUpperCase(), 14, sectionY + 5);
                 
-                doc.setFontSize(10);
+                doc.setFontSize(9.5);
                 doc.setFont("helvetica", "normal");
-                doc.setTextColor(30, 30, 30);
-                doc.text(`Kavling Blok ${client.blok || '-'} No. ${client.tipe || '-'}`, 14, sectionY + 11);
+                doc.setTextColor(50, 50, 50);
+                doc.text(`Kavling Blok ${client.blok || '-'} No. ${client.tipe || '-'}`, 14, sectionY + 10);
                 
                 // Invoice Details (Right Side)
                 doc.setTextColor(0, 0, 0);
-                doc.setFontSize(10);
+                doc.setFontSize(9.5);
                 doc.setFont("helvetica", "bold");
                 doc.text("Invoice No :", 125, sectionY);
                 doc.setFont("helvetica", "normal");
-                doc.text("Invoice Date :", 125, sectionY + 6);
-                doc.text("PO No :", 125, sectionY + 12);
+                doc.text("Invoice Date :", 125, sectionY + 5);
+                doc.text("PO No :", 125, sectionY + 10);
                 
                 doc.setFont("helvetica", "bold");
                 doc.text(inv.id, 196, sectionY, { align: "right" });
                 doc.setFont("helvetica", "normal");
-                doc.text(formatDate(inv.date), 196, sectionY + 6, { align: "right" });
-                doc.text(formatRp(client.harga || 0), 196, sectionY + 12, { align: "right" }); // PO No is Property Price based on screenshot
+                doc.text(formatDate(inv.date), 196, sectionY + 5, { align: "right" });
+                doc.text(formatRp(client.harga || 0), 196, sectionY + 10, { align: "right" });
                 
                 // Table Configuration to match image exactly
                 const tableData = items.map((item, index) => [
                     (index + 1).toString(),
                     item.desc,
-                    item.price.toString(), // Nominal without Rp
+                    item.price.toString(),
                     item.qty.toString(),
-                    "Rp\n" + new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.price), // Rate
-                    "Rp\n" + new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.total)  // Amount
+                    "Rp\n" + new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.price),
+                    "Rp\n" + new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.total)
                 ]);
                 
                 doc.autoTable({
-                    startY: sectionY + 20,
+                    startY: sectionY + 16,
                     head: [['Sl.', 'Description', 'Nominal', 'Qty', 'Rate', 'Amount']],
                     body: tableData,
                     theme: 'plain',
                     headStyles: { 
-                        fillColor: [13, 110, 253], // Blue header
+                        fillColor: [13, 110, 253], 
                         textColor: [255, 255, 255], 
                         fontStyle: 'bold', 
                         fontSize: 9,
@@ -1156,12 +1151,12 @@
                         lineColor: [220, 220, 220]
                     },
                     alternateRowStyles: {
-                        fillColor: [250, 250, 250] // Slight zebra striping
+                        fillColor: [250, 250, 250]
                     }
                 });
                 
                 // Footer / Total / Signature
-                let fY = doc.lastAutoTable.finalY + 15;
+                let fY = doc.lastAutoTable.finalY + 12;
 
                 // Payment Instructions
                 doc.setFontSize(9);
@@ -1169,7 +1164,7 @@
                 doc.text("Payment Instructions", 14, fY);
                 doc.setFont("helvetica", "normal");
                 doc.setTextColor(80, 80, 80);
-                doc.text("Send to bank\nRek BCA\n3770780241 a.n Yanto Priyanto", 14, fY + 5);
+                doc.text("Send to bank\nRek BCA\n3770780241 a.n Yanto Priyanto", 14, fY + 4.5);
 
                 // Summary Totals
                 const rpStr = (num) => "Rp " + new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
@@ -1180,29 +1175,27 @@
                 doc.text(rpStr(inv.total), 196, fY, { align: "right" });
                 
                 doc.setDrawColor(220, 220, 220);
-                doc.line(120, fY + 3, 196, fY + 3);
+                doc.line(120, fY + 2.5, 196, fY + 2.5);
 
-                doc.text("Total", 130, fY + 9);
-                doc.text(rpStr(inv.total), 196, fY + 9, { align: "right" });
+                doc.text("Total", 130, fY + 8);
+                doc.text(rpStr(inv.total), 196, fY + 8, { align: "right" });
                 
                 doc.setFont("helvetica", "normal");
-                doc.text("Paid", 130, fY + 14);
-                doc.text(rpStr(0), 196, fY + 14, { align: "right" }); // Assuming draft/unpaid
+                doc.text("Paid", 130, fY + 13);
+                doc.text(rpStr(0), 196, fY + 13, { align: "right" });
                 
                 doc.setFont("helvetica", "bold");
-                doc.text("Balance Due", 130, fY + 19);
-                doc.text(rpStr(inv.total), 196, fY + 19, { align: "right" });
+                doc.text("Balance Due", 130, fY + 18);
+                doc.text(rpStr(inv.total), 196, fY + 18, { align: "right" });
 
-                doc.line(120, fY + 23, 196, fY + 23);
+                doc.line(120, fY + 21, 196, fY + 21);
 
                 // Signature section
                 doc.setFont("helvetica", "bold");
-                doc.text("Joni Jatnika", 130, fY + 45, { align: "center" });
-                // Draw a simple line above name for visual signature slot
+                doc.text("Joni Jatnika", 130, fY + 40, { align: "center" });
                 doc.setDrawColor(0, 0, 0);
                 doc.setLineWidth(0.3);
-                // Simulated signature curves (mock)
-                doc.line(115, fY + 40, 145, fY + 40); // Underline
+                doc.line(115, fY + 35, 145, fY + 35);
 
                 doc.save(`${inv.id}.pdf`);
                 hideLoading();
